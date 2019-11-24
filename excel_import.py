@@ -1,7 +1,7 @@
 '''
 excel写入脚本 1.0版本
 '''
-
+import django
 import openpyxl
 import pymysql
 
