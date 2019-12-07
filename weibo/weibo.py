@@ -4,14 +4,19 @@ import requests
 import time,random
 from lxml import etree # 导入xpath
 from queue import Queue # 导入队列
+from selenium import webdriver # 模拟登录
+# from selenium.webdriver import ActionChains # 引入鼠标事件类
+from selenium.webdriver.common.keys import Keys # 引入键盘事件类
+
 
 class WeiboSpider(object):
     def __init__(self,obj):
         self.obj = obj
         self.url = 'https://s.weibo.com/weibo?q={}&Refer=SWeibo_box&page={}'
         self.q = Queue()
+        self.f = open('cookies.txt',encoding='utf-8')
         self.headers ={
-            "Cookie": "SINAGLOBAL=4094217406372.1895.1504441217795; _ga=GA1.2.1305961026.1570191031; __gads=ID=53bdecfe18472008:T=1570191034:S=ALNI_MahhE4MawlLjnyifHMRr51-EFI-og; UOR=baike.baidu.com,widget.weibo.com,login.sina.com.cn; _s_tentry=-; Apache=3174969925417.2812.1575622970104; ULV=1575622970210:13:4:4:3174969925417.2812.1575622970104:1575622408815; WBtopGlobal_register_version=307744aa77dd5677; crossidccode=CODE-tc-1IDaBa-15KL9s-FJIh6IzWxbPPFvnd4e67e; ALF=1607163174; SSOLoginState=1575627175; SCF=Av3l5vPfLw5jsZpojI7OdoSbkOLEdgrfhfoNbqBFy-5CKnKGZ4BEjDiXWdcQqiiiFHF9HfFzIN5njIDhHhaa5a8.; SUB=_2A25w7ln3DeRhGeVO4lAV9i7LyT2IHXVTmsw_rDV8PUNbmtAKLXXBkW9NTXKeRwhlhAKOte4FynwsDOUZm7FLj4ik; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WFsw4O8nPOq7K.mndXyXWNw5JpX5KzhUgL.Foe71KzXSo5Neo22dJLoIpjLxK-L1h-LB-zLxKBLB.2L1K2LxKnLBKML1h.t; SUHB=0LcSvhO6nfxTTc; wvr=6; WBStorage=42212210b087ca50|undefined",
+            "Cookie": self.f.read(),
             "Referer": self.url,
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.25 Safari/537.36 Core/1.70.3741.400 QQBrowser/10.5.3863.400",}
         self.value = [["博主姓名", "微博正文", "评论数", "转发数", "点赞数","发布时间"],
@@ -43,14 +48,45 @@ class WeiboSpider(object):
                     time.sleep(random.uniform(0.2,0.7))
                 except Exception as e:
                     print('Retry')
+                    exit()
             else:
                 break
 
+    # 模拟登录获取cookies
+    def weibocookies(self):
+        # 创建选项对象
+        print('开始访问微博首页...')
+        options = webdriver.ChromeOptions()
+        # 无头模式
+        # options.add_argument('--headless')
+        # 添加路径
+        options.binary_location = r"E:\Chrome\chrome.exe"
+        # 创建浏览器对象
+        browser = webdriver.Chrome(chrome_options=options)
+        browser.get('https://weibo.com/login.php')
+        print('页面渲染成功,准备登录')
+        time.sleep(5)
+        browser.find_element_by_id('loginname').send_keys('17607130551')
+        time.sleep(0.5)
+        browser.find_element_by_xpath('//*[@id="pl_login_form"]/div/div[3]/div[2]/div/input').send_keys('qq781124')
+        time.sleep(0.5)
+        browser.find_element_by_xpath('//*[@id="pl_login_form"]/div/div[3]/div[2]/div/input').send_keys(Keys.ENTER)
+        print('登录中,页面渲染有点慢,请稍等片刻')
+        time.sleep(10)
+        print('登陆成功,准备获取cookies')
+        with open('cookies.txt', 'w', encoding='utf-8') as f:
+            for cook in browser.get_cookies():
+                print(cook['name'], ':')
+                print(cook['value'], ';')
+                f.write(cook['name'] + '=' + cook['value'] + '; ')
+            f.close()
+            print('cookies写入成功,请重新启动本程序')
+        # 关闭浏览器
+        browser.quit()
+
     # 获取页数,url入队
     def url_in(self):
-
         pageurl = 'https://s.weibo.com/weibo?q={}&Refer=SWeibo_box'.format(self.obj)
-
         try:
             html = requests.get(url=pageurl, headers=self.headers, timeout=3).content.decode('utf-8', 'ignore')
             # 如果有二级页面跳转
@@ -65,10 +101,16 @@ class WeiboSpider(object):
             # print(li_list,'页数')  # 获取所有页数对象
             # ['第44页'] -->44
             li = li_list.pop().xpath('.//text()')[0][1:-1]  # 获取最后一页
-
+        except IndexError as e:
+            print('登录状态过期,没有获取到页数,准备重新登录')
+            self.f.close()
+            self.weibocookies() # 微博模拟登录接口
+            input('按回车退出')
+            exit()
         except Exception as e:
             print(e)
             print('页数没拿到')
+            exit()
         else:
             for page in range(1,int(li)+1):
                 # 拼接所有页数,放入队列
@@ -102,7 +144,6 @@ class WeiboSpider(object):
             if '展开全文' in ''.join(zkqw):
                 zw = content.xpath('../p[@node-type="feed_list_content_full"]/text()')
                 # print('有展开全文,if in',zw)
-
                 # 极端情况,内容中含有展开全文这四个字的时候
                 if not zw:
                     text = ''
@@ -157,20 +198,20 @@ class WeiboSpider(object):
                 fabustr += fabu
             timeall.append(''.join(''.join(fabustr.split('\n')).split()))
 
-
-
         # 整合每条微博数据,添加到value
         for i in range(len(contentall)):
             val = [bozhuidall[i], contentall[i], pinglunall[i],zhuanfaall[i],dianzanall[i],timeall[i]]
             print(val)
             self.value.append(val)
-
         # print('博主id是:', bozhuidall, '\n正文是:', contentall, '\n评论是', pinglunall, '\n转发是', zhuanfaall, '\n点赞是', dianzanall,'\n发布时间是', timeall)
         # return contentall
 
     # 写入excel
     def write_excel_xlsx(self):
         print('准备写入xlsx------------')
+        if len(self.value) == 1:
+            print('没获取到内容,写入xlsx失败')
+            return
         index = len(self.value)  # 获取需要写入数据的行数
         workbook = openpyxl.Workbook()  # 新建一个工作簿
         sheet = workbook.active
@@ -191,7 +232,8 @@ class WeiboSpider(object):
         self.parse_html()
         # 写入excel
         self.write_excel_xlsx()
-
+        # 关闭cookies文本
+        self.f.close()
 
 if __name__ == '__main__':
     print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
@@ -203,3 +245,4 @@ if __name__ == '__main__':
     spider.run()
     print('运行时间:%.2f秒'%(time.time()-t1))
     input('运行结束owo,本程序仅供个人测试学习,请勿商用,谢谢合作!')
+    print('按回车键退出')

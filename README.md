@@ -6,6 +6,7 @@
         * 提供要打开的号码txt文件名即可
     - 3.爬取微博搜索关键字信息,自动写入excel工具
     	* 输入关键字即可
+    	* cookies过期时,模拟登录获取cookies
     - 4.列表助手类
         * 查询工具箱
         * 快排
@@ -27,7 +28,7 @@
 
 
 
-pyinstaller --onefile --nowindowed --icon="D:\stu\xcx\favicon.ico" wuhan_tel.py
+pyinstaller --onefile --nowindowed --icon="D:\stu\xcx\favicon.ico" weibo.py
 pyinstaller -F wuhan_tel.py
 ```
 
